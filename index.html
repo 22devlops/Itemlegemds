@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Legends</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #2c3e50;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #34495e;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+
+        .btn {
+            padding: 12px 25px;
+            margin: 10px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: #3498db;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            background: #2980b9;
+        }
+
+        .btn:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+        }
+
+        .fighter-card {
+            display: inline-block;
+            width: 200px;
+            margin: 15px;
+            padding: 15px;
+            background: #2ecc71;
+            border-radius: 10px;
+            color: white;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+
+        .health-bar {
+            height: 20px;
+            background: #e74c3c;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .ultimate-bar {
+            height: 20px;
+            background: #9b59b6;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .screen {
+            display: none;
+            padding: 20px;
+            background: #2c3e50;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 ITEM LEGENDS</h1>
+
+        <div id="menu">
+            <button class="btn" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
+            <button class="btn" onclick="openFightersScreen()">🎖️ МОИ БОЙЦЫ</button>
+            <button class="btn" onclick="openChestScreen()">🎁 СУНДУКИ (<span id="chest-count">0</span>)</button>
+        </div>
+
+        <div id="game" class="screen">
+            <h2>⚔️ ТВОЙ БОЕЦ:</h2>
+            <div id="player"></div>
+            <h2>👾 ПРОТИВНИК:</h2>
+            <div id="enemy"></div>
+
+            <button class="btn" onclick="attack()">🔥 АТАКА</button>
+            <button class="btn" id="ultimate-btn" onclick="useUltimate()" disabled>💥 УЛЬТА</button>
+            <button class="btn" onclick="returnToMenu()">🔙 НАЗАД</button>
+        </div>
+
+        <div id="fighters" class="screen">
+            <h2>⭐ ВЫБЕРИ БОЙЦА:</h2>
+            <div id="fighters-list"></div>
+            <button class="btn" onclick="returnToMenu()">🔙 НАЗАД</button>
+        </div>
+
+        <div id="chest" class="screen">
+            <h2>🎁 ДОСТУПНО СУНДУКОВ: <span id="chest-count-2">0</span></h2>
+            <button class="btn" id="open-chest-btn" onclick="openChest()" disabled>🔓 ОТКРЫТЬ</button>
+            <p id="chest-result"></p>
+            <button class="btn" onclick="returnToMenu()">🔙 НАЗАД</button>
+        </div>
+    </div>
+
+    <script>
+        const fighters = [
+            { name: "Шампунь", attack: 10, ultimate: 20, health: 100, attackDesc: "Метает шампунь", ultimateDesc: "Разбрасывает быстрее и мощнее" },
+            { name: "Чай", attack: 7, ultimate: 17, health: 85, attackDesc: "Метает листья", ultimateDesc: "Кидает кружку с чаем (кипяток)" },
+            { name: "Удобрение", attack: 9, ultimate: 19, health: 95, attackDesc: "Раскидывает удобрение", ultimateDesc: "Горшок с цветом падает" },
+            { name: "Сок", attack: 8, ultimate: 18, health: 90, attackDesc: "Струя сока льётся", ultimateDesc: "Сок делает круг и одновременно выпускает струю" },
+            { name: "Батинки", attack: 6, ultimate: 16, health: 80, attackDesc: "Кидает батинки", ultimateDesc: "Дождь из батинок" },
+            { name: "Холодильник", attack: 12, ultimate: 25, health: 110, attackDesc: "Снежинками", ultimateDesc: "Заморозка противника" },
+            { name: "Майка", attack: 6, ultimate: 16, health: 80, attackDesc: "Клубками нити", ultimateDesc: "Майка кидается на голову противника на 5 сек" },
+            { name: "Сахар", attack: 9, ultimate: 20, health: 90, attackDesc: "Метает большими кусками сахара", ultimateDesc: "Сахар ставит много леденцов" },
+            { name: "Сыр", attack: 10, ultimate: 22, health: 95, attackDesc: "Кусочками сыра", ultimateDesc: "Пускает мышей на противника" },
+            { name: "Телевизор", attack: 8, ultimate: 25, health: 100, attackDesc: "Ярким экраном в противника", ultimateDesc: "Телевизор перемещает противника в 'другой мир'" },
+            { name: "Тёрка", attack: 7, ultimate: 18, health: 85, attackDesc: "Картошкой", ultimateDesc: "Тёрка кидает твёрдой картошкой" },
+            { name: "Велосипед", attack: 6, ultimate: 15, health: 80, attackDesc: "Звуком звонка", ultimateDesc: "Велосипед едет на противника и врезается" }
+        ];
+
+        // Загрузка сохраненных данных
+        let chestCount = parseInt(localStorage.getItem('chestCount')) || 0;
+        let collectedFighters = loadCollectedFighters();
+        let player = loadSelectedFighter();
+        let enemy = null;
+        let playerHealth = 0;
+        let enemyHealth = 0;
+        let ultimateCharge = 0;
+
+        // Функция для загрузки сохраненных бойцов
+        function loadCollectedFighters() {
+            const savedFighters = localStorage.getItem('collectedFighters');
+            if (savedFighters) {
+                return JSON.parse(savedFighters);
+            } else {
+                return [fighters[0]]; // Боец по умолчанию
+            }
+        }
+
+        // Функция для сохранения списка бойцов
+        function saveCollectedFighters() {
+            localStorage.setItem('collectedFighters', JSON.stringify(collectedFighters));
+        }
+
+        // Функция для загрузки выбранного бойца
+        function loadSelectedFighter() {
+            const savedFighter = localStorage.getItem('selectedFighter');
+            if (savedFighter) {
+                return JSON.parse(savedFighter);
+            } else {
+                return null;
+            }
+        }
+
+        // Функция для сохранения выбранного бойца
+        function saveSelectedFighter() {
+            localStorage.setItem('selectedFighter', JSON.stringify(player));
+        }
+
+        // Обновление количества сундуков
+        function updateChestCount() {
+            document.getElementById("chest-count").innerText = chestCount;
+            document.getElementById("chest-count-2").innerText = chestCount;
+            document.getElementById("open-chest-btn").disabled = chestCount <= 0;
+            localStorage.setItem('chestCount', chestCount);
+        }
+
+        // Начало игры
+        function startGame() {
+            if (!player) {
+                alert("Сначала выберите бойца!");
+                return;
+            }
+
+            playerHealth = player.health;
+            enemy = fighters[Math.floor(Math.random() * fighters.length)];
+            enemyHealth = enemy.health;
+            ultimateCharge = 0;
+
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("game").style.display = "block";
+
+            updateFighter("player", player, playerHealth, ultimateCharge);
+            updateFighter("enemy", enemy, enemyHealth, 0);
+            updateUltimateButton();
+        }
+
+        // Обновление карточки бойца
+        function updateFighter(elementId, fighter, health, ultCharge) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `
+                <div class="fighter-card">
+                    <p>${fighter.name}</p>
+                    <div class="health-bar" style="width: ${Math.max(0, health)}%;"></div>
+                    <div class="ultimate-bar" style="width: ${ultCharge}%;"></div>
+                </div>
+            `;
+        }
+
+        // Атака
+        function attack() {
+            if (!player || !enemy) return;
+
+            enemyHealth -= player.attack;
+            updateFighter("enemy", enemy, enemyHealth, 0);
+
+            if (enemyHealth <= 0) {
+                winBattle();
+            } else {
+                chargeUltimate();
+                botAttack();
+            }
+        }
+
+        // Заряд ульты
+        function chargeUltimate() {
+            ultimateCharge += 25;
+            if (ultimateCharge > 100) ultimateCharge = 100;
+            updateUltimateButton();
+            updateFighter("player", player, playerHealth, ultimateCharge);
+        }
+
+        // Обновление кнопки ульты
+        function updateUltimateButton() {
+            document.getElementById("ultimate-btn").disabled = ultimateCharge < 100;
+        }
+
+        // Использование ульты
+        function useUltimate() {
+            if (ultimateCharge < 100) return;
+
+            enemyHealth -= player.ultimate;
+            ultimateCharge = 0;
+            updateUltimateButton();
+            updateFighter("player", player, playerHealth, ultimateCharge);
+
+            if (enemyHealth <= 0) {
+                winBattle();
+            } else {
+                botAttack();
+            }
+        }
+
+        // Атака бота
+        function botAttack() {
+            playerHealth -= enemy.attack;
+            updateFighter("player", player, playerHealth, ultimateCharge);
+
+            if (playerHealth <= 0) {
+                loseBattle();
+            }
+        }
+
+        // Победа
+        function winBattle() {
+            chestCount++;
+            updateChestCount();
+            returnToMenu();
+        }
+
+        // Поражение
+        function loseBattle() {
+            returnToMenu();
+        }
+
+        // Возврат в меню
+        function returnToMenu() {
+            document.getElementById("game").style.display = "none";
+            document.getElementById("fighters").style.display = "none";
+            document.getElementById("chest").style.display = "none";
+            document.getElementById("menu").style.display = "block";
+        }
+
+        // Открытие экрана бойцов
+        function openFightersScreen() {
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("fighters").style.display = "block";
+            const fightersList = document.getElementById("fighters-list");
+            fightersList.innerHTML = "";
+
+            collectedFighters.forEach(fighter => {
+                let fighterCard = document.createElement("div");
+                fighterCard.classList.add("fighter-card");
+                fighterCard.innerHTML = `
+                    <p>${fighter.name}</p>
+                    <p><strong>Атака:</strong> ${fighter.attack}</p>
+                    <p><strong>Ульта:</strong> ${fighter.ultimate}</p>
+                    <p><strong>Здоровье:</strong> ${fighter.health}</p>
+                    <button class="btn" onclick="selectFighter('${fighter.name}')">Выбрать</button>
+                `;
+                fightersList.appendChild(fighterCard);
+            });
+        }
+
+        // Выбор бойца
+        function selectFighter(fighterName) {
+            player = collectedFighters.find(f => f.name === fighterName);
+            saveSelectedFighter();
+            returnToMenu();
+        }
+
+        // Открытие экрана сундуков
+        function openChestScreen() {
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("chest").style.display = "block";
+            updateChestCount();
+        }
+
+        // Открытие сундука
+        function openChest() {
+            if (chestCount <= 0) return;
+            chestCount--;
+            updateChestCount();
+            let chance = Math.random();
+
+            if (chance <= 0.85) {
+                document.getElementById("chest-result").innerText = "Сундук пуст!";
+            } else if (chance <= 0.95) {
+                let randomFighter = collectedFighters[Math.floor(Math.random() * collectedFighters.length)];
+                document.getElementById("chest-result").innerText = `Повторка: ${randomFighter.name}`;
+            } else if (chance <= 0.999) {
+                let availableFighters = fighters.filter(f =>
+                    !collectedFighters.some(c => c.name === f.name) &&
+                    f.name !== "Холодильник"
+                );
+
+                if (availableFighters.length > 0) {
+                    let newFighter = availableFighters[Math.floor(Math.random() * availableFighters.length)];
+                    collectedFighters.push(newFighter);
+                    saveCollectedFighters();
+                    document.getElementById("chest-result").innerText = `Новый боец: ${newFighter.name}!`;
+                } else {
+                    document.getElementById("chest-result").innerText = "Сундук пуст!";
+                }
+            } else {
+                let fridge = fighters.find(f => f.name === "Холодильник");
+                if (!collectedFighters.some(c => c.name === "Холодильник")) {
+                    collectedFighters.push(fridge);
+                    saveCollectedFighters();
+                    document.getElementById("chest-result").innerText = "✨ УЛЬТРА-РЕДКИЙ ХОЛОДИЛЬНИК! ✨";
+                } else {
+                    document.getElementById("chest-result").innerText = "Сундук пуст!";
+                }
+            }
+        }
+    </script>
+</body>
+</html>
