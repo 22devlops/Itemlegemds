@@ -3,160 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Item Legends 3D - Online</title>
+    <title>Item Legends 3D - Online Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Arial', sans-serif; overflow: hidden; background: #000; }
-        #canvas-container { width: 100vw; height: 100vh; position: relative; }
-        #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; color: white; }
-        .ui-panel { pointer-events: auto; background: rgba(0, 0, 0, 0.8); padding: 20px; border-radius: 10px; backdrop-filter: blur(10px); border: 1px solid #3498db; }
-        #menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 350px; }
-        #game-ui { position: absolute; top: 20px; left: 20px; }
-        #matchmaking { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; display: none; }
-        .btn { width: 100%; padding: 15px; margin: 10px 0; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; background: #3498db; color: white; transition: 0.3s; }
-        .btn:hover { background: #2980b9; transform: scale(1.02); }
-        .health-bar { height: 25px; background: #e74c3c; border-radius: 5px; margin: 5px 0; overflow: hidden; position: relative; width: 200px; border: 1px solid #fff; }
-        #p1-hp, #p2-hp { height: 100%; background: #2ecc71; transition: 0.3s; width: 100%; }
+        body { font-family: 'Arial', sans-serif; overflow: hidden; background: #000; color: white; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        .ui-panel { position: absolute; background: rgba(0, 0, 0, 0.8); padding: 20px; border-radius: 10px; z-index: 10; pointer-events: auto; }
+        #auth-screen { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; text-align: center; }
+        #menu { top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .btn { padding: 12px 25px; margin: 8px; border: none; border-radius: 8px; cursor: pointer; background: #3498db; color: white; width: 100%; }
         .hidden { display: none !important; }
+        .input-field { width: 100%; padding: 10px; margin: 5px 0; background: #222; border: 1px solid #3498db; color: white; }
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
-    <div id="ui-overlay">
-        <div id="menu" class="ui-panel">
-            <h1>🎮 ITEM LEGENDS 3D</h1>
-            <p>Сундуков: <span id="chest-count">0</span></p>
-            <button class="btn" onclick="startMode('bot')">🤖 ИГРА С БОТОМ</button>
-            <button class="btn" style="background: #e67e22;" onclick="startMode('online')">🌐 ОНЛАЙН БОЙ</button>
-            <button class="btn" style="background: #9b59b6;" onclick="openChest()">🎁 СУНДУК</button>
-        </div>
 
-        <div id="matchmaking" class="ui-panel">
-            <h2>ПОИСК ИГРОКА...</h2>
-            <button class="btn" onclick="location.reload()">ОТМЕНА</button>
-        </div>
+    <div id="auth-screen" class="ui-panel">
+        <h2>ITEM LEGENDS</h2>
+        <input type="text" id="log" class="input-field" placeholder="Логин">
+        <input type="password" id="pas" class="input-field" placeholder="Пароль">
+        <button class="btn" onclick="auth('login')">ВОЙТИ</button>
+        <button class="btn" style="background:#2ecc71" onclick="auth('register')">РЕГИСТРАЦИЯ</button>
+    </div>
 
-        <div id="game-ui" class="ui-panel hidden">
-            <h3>ВЫ: <span id="p1-name"></span></h3>
-            <div class="health-bar"><div id="p1-hp"></div></div>
-            <h3 style="margin-top: 15px;">ВРАГ: <span id="p2-name"></span></h3>
-            <div class="health-bar"><div id="p2-hp" style="background: #e74c3c;"></div></div>
-        </div>
+    <div id="menu" class="ui-panel hidden">
+        <h1>МЕНЮ</h1>
+        <button class="btn" onclick="startBattle()">🌐 ОНЛАЙН БОЙ</button>
     </div>
 
     <script>
-        // ВСТАВЬ СВОЮ ССЫЛКУ ИЗ ТЕРМИНАЛА ТУТ:
-        const SERVER_URL = "https://ТВОЯ-ССЫЛКА.loca.lt"; 
+        // ТВОЯ ССЫЛКА ИЗ ТЕРМИНАЛА (Cloudflare/Ngrok)
+        const socket = io("ВСТАВЬ_СЮДА_ССЫЛКУ");
 
-        const fighters = [
-            { name: "Шампунь", attack: 10, health: 100, color: 0x3498db, shape: 'bottle' },
-            { name: "Чай", attack: 7, health: 85, color: 0xe67e22, shape: 'cup' },
-            { name: "Холодильник", attack: 12, health: 110, color: 0xecf0f1, shape: 'fridge' }
-            // Все 12 бойцов подгружаются из твоего списка
-        ];
+        let scene, camera, renderer, playerMesh, enemyMesh;
+        let gameState = 'auth';
+        let keys = {};
+        let playerHP = 100, enemyHP = 100;
 
-        let scene, camera, renderer, socket, playerMesh, enemyMesh;
-        let isOnline = false, battleActive = false;
-        let myData = { name: "Герой", hp: 100, maxHp: 100, x: 0, z: 5, chests: 0 };
-        let enemyHP = 100;
+        function auth(type) {
+            const login = document.getElementById('log').value;
+            const pass = document.getElementById('pas').value;
+            socket.emit(type, { login, password: pass });
+        }
 
-        function initScene() {
+        socket.on('authSuccess', () => {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('menu').classList.remove('hidden');
+            init3D();
+        });
+
+        function init3D() {
             scene = new THREE.Scene();
-            scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 8, 12);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            camera.position.set(0, 5, 10);
+            renderer = new THREE.WebGLRenderer();
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-            // Твой неоновый город
-            const ground = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshStandardMaterial({color: 0x2c3e50}));
-            ground.rotation.x = -Math.PI/2;
-            scene.add(ground, new THREE.AmbientLight(0x404040));
             
-            // Создание зданий (как в твоем коде)
-            for (let i = 0; i < 8; i++) {
-                const h = 5 + Math.random() * 5;
-                const b = new THREE.Mesh(new THREE.BoxGeometry(2, h, 2), new THREE.MeshStandardMaterial({color: 0x34495e}));
-                b.position.set(Math.cos(i) * 15, h/2, Math.sin(i) * 15);
-                scene.add(b);
-            }
-        }
+            scene.add(new THREE.GridHelper(20, 20));
+            scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-        function createFighter(f, x, z) {
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 1), new THREE.MeshStandardMaterial({color: f.color}));
-            mesh.position.set(x, 0.75, z);
-            scene.add(mesh);
-            return mesh;
-        }
+            // Твой боец
+            playerMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({color: 0x3498db}));
+            scene.add(playerMesh);
 
-        function startMode(mode) {
-            document.getElementById('menu').classList.add('hidden');
-            initScene();
-            if (mode === 'online') {
-                isOnline = true;
-                document.getElementById('matchmaking').style.display = 'block';
-                setupOnline();
-            } else {
-                startBot();
-            }
+            // Враг
+            enemyMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({color: 0xe74c3c}));
+            enemyMesh.position.z = -5;
+            scene.add(enemyMesh);
+
             animate();
         }
 
-        function setupOnline() {
-            socket = io(SERVER_URL);
-            socket.emit('join', myData);
-            socket.on('start', (data) => {
-                document.getElementById('matchmaking').style.display = 'none';
-                document.getElementById('game-ui').classList.remove('hidden');
-                playerMesh = createFighter(myData, 0, 5);
-                enemyMesh = createFighter(data.opp, 0, -5);
-                document.getElementById('p1-name').innerText = myData.name;
-                document.getElementById('p2-name').innerText = data.opp.name;
-                battleActive = true;
-            });
-            socket.on('update', (pos) => { if(enemyMesh) { enemyMesh.position.x = pos.x; enemyMesh.position.z = pos.z; } });
-            socket.on('hit', () => { myData.hp -= 10; updateHP(); });
+        function startBattle() {
+            document.getElementById('menu').classList.add('hidden');
+            gameState = 'battle';
+            socket.emit('findMatch', { name: "Игрок" });
         }
 
-        function updateHP() {
-            document.getElementById('p1-hp').style.width = myData.hp + "%";
-            if(myData.hp <= 0) alert("ПОРАЖЕНИЕ!");
+        // Логика атаки
+        function doAttack() {
+            if(gameState !== 'battle') return;
+            
+            // Анимация прыжка
+            playerMesh.position.y += 0.5;
+            setTimeout(() => playerMesh.position.y = 0, 200);
+
+            // Шлем урон на малинку
+            socket.emit('attack', 10);
         }
 
-        const keys = {};
-        window.onkeydown = (e) => {
+        // Получение урона
+        socket.on('takeDamage', (dmg) => {
+            playerHP -= dmg;
+            console.log("Твоё HP: " + playerHP);
+            if(playerHP <= 0) alert("Поражение!");
+        });
+
+        // Движение врага
+        socket.on('oppUpdate', (pos) => {
+            enemyMesh.position.set(pos.x, pos.y, pos.z);
+        });
+
+        window.addEventListener('keydown', (e) => {
             keys[e.key.toLowerCase()] = true;
-            if(e.key.toLowerCase() === 'e' && isOnline) socket.emit('attack');
-        };
-        window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
+            if(e.key.toLowerCase() === 'e') doAttack();
+        });
+        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
         function animate() {
             requestAnimationFrame(animate);
-            if (battleActive && playerMesh) {
-                if (keys['w']) myData.z -= 0.1;
-                if (keys['s']) myData.z += 0.1;
-                if (keys['a']) myData.x -= 0.1;
-                if (keys['d']) myData.x += 0.1;
-                playerMesh.position.set(myData.x, 0.75, myData.z);
-                if (isOnline) socket.emit('move', {x: myData.x, z: myData.z});
+            if(gameState === 'battle') {
+                if(keys['w']) playerMesh.position.z -= 0.1;
+                if(keys['s']) playerMesh.position.z += 0.1;
+                if(keys['a']) playerMesh.position.x -= 0.1;
+                if(keys['d']) playerMesh.position.x += 0.1;
+                
+                // Шлем позицию на малинку
+                socket.emit('move', playerMesh.position);
             }
             renderer.render(scene, camera);
-        }
-
-        function openChest() {
-            myData.chests++;
-            document.getElementById('chest-count').innerText = myData.chests;
-            alert("Вы нашли сундук! +1");
-        }
-        
-        function startBot() {
-            document.getElementById('game-ui').classList.remove('hidden');
-            playerMesh = createFighter(fighters[0], 0, 5);
-            enemyMesh = createFighter(fighters[1], 0, -5);
-            battleActive = true;
         }
     </script>
 </body>
