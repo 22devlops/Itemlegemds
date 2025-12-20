@@ -3,714 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Item Legends</title>
+    <title>Item Legends 3D - Online</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #2c3e50;
-            color: white;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: #34495e;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.3);
-        }
-
-        .btn {
-            padding: 12px 25px;
-            margin: 10px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s;
-            background: #3498db;
-            color: white;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            background: #2980b9;
-        }
-
-        .btn:disabled {
-            background: #7f8c8d;
-            cursor: not-allowed;
-        }
-
-        .fighter-card {
-            display: inline-block;
-            width: 200px;
-            margin: 15px;
-            padding: 15px;
-            background: #2ecc71;
-            border-radius: 10px;
-            color: white;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        }
-
-        .health-bar {
-            height: 20px;
-            background: #e74c3c;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-
-        .ultimate-bar {
-            height: 20px;
-            background: #9b59b6;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-
-        .screen {
-            display: none;
-            padding: 20px;
-            background: #2c3e50;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-
-        .input-field {
-            padding: 10px;
-            margin: 10px 0;
-            width: 100%;
-            border-radius: 5px;
-            border: none;
-        }
-
-        .code-input {
-            font-size: 24px;
-            letter-spacing: 5px;
-            text-align: center;
-            width: 150px;
-        }
-
-        .timer {
-            font-size: 14px;
-            color: #f39c12;
-            margin-top: 5px;
-        }
-
-        .cooldown {
-            position: relative;
-        }
-
-        .cooldown::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            border-radius: 8px;
-            transition: height 1s linear;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', sans-serif; overflow: hidden; background: #000; }
+        #canvas-container { width: 100vw; height: 100vh; position: relative; }
+        #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; color: white; }
+        .ui-panel { pointer-events: auto; background: rgba(0, 0, 0, 0.8); padding: 20px; border-radius: 10px; backdrop-filter: blur(10px); border: 1px solid #3498db; }
+        #menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 350px; }
+        #game-ui { position: absolute; top: 20px; left: 20px; }
+        #matchmaking { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; display: none; }
+        .btn { width: 100%; padding: 15px; margin: 10px 0; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; background: #3498db; color: white; transition: 0.3s; }
+        .btn:hover { background: #2980b9; transform: scale(1.02); }
+        .health-bar { height: 25px; background: #e74c3c; border-radius: 5px; margin: 5px 0; overflow: hidden; position: relative; width: 200px; border: 1px solid #fff; }
+        #p1-hp, #p2-hp { height: 100%; background: #2ecc71; transition: 0.3s; width: 100%; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎮 ITEM LEGENDS</h1>
-
-        <div id="auth" class="screen">
-            <h2>🔒 ВХОД / РЕГИСТРАЦИЯ</h2>
-            <input type="text" id="login" class="input-field" placeholder="Логин">
-            <input type="password" id="password" class="input-field" placeholder="Пароль">
-            <button class="btn" onclick="login()">ВОЙТИ</button>
-            <button class="btn" onclick="register()">ЗАРЕГИСТРИРОВАТЬСЯ</button>
-            <p id="auth-message" style="color: #e74c3c;"></p>
+    <div id="canvas-container"></div>
+    <div id="ui-overlay">
+        <div id="menu" class="ui-panel">
+            <h1>🎮 ITEM LEGENDS 3D</h1>
+            <p>Сундуков: <span id="chest-count">0</span></p>
+            <button class="btn" onclick="startMode('bot')">🤖 ИГРА С БОТОМ</button>
+            <button class="btn" style="background: #e67e22;" onclick="startMode('online')">🌐 ОНЛАЙН БОЙ</button>
+            <button class="btn" style="background: #9b59b6;" onclick="openChest()">🎁 СУНДУК</button>
         </div>
 
-        <div id="menu" class="screen">
-            <button class="btn" onclick="openGameModeScreen()">▶️ НАЧАТЬ ИГРУ</button>
-            <button class="btn" onclick="openFightersScreen()">🎖️ МОИ БОЙЦЫ</button>
-            <button class="btn" onclick="openChestScreen()">🎁 СУНДУКИ (<span id="chest-count">0</span>)</button>
-            <button class="btn" onclick="logout()">🚪 ВЫЙТИ</button>
+        <div id="matchmaking" class="ui-panel">
+            <h2>ПОИСК ИГРОКА...</h2>
+            <button class="btn" onclick="location.reload()">ОТМЕНА</button>
         </div>
 
-        <div id="game-mode" class="screen">
-            <h2>⚔️ ВЫБЕРИ РЕЖИМ:</h2>
-            <button class="btn" onclick="startGame('bot')">🤖 ИГРАТЬ С БОТОМ</button>
-            <button class="btn" onclick="">🌐 ИГРАТЬ ОНЛАЙН (Not work)</button>
-            <button class="btn" onclick="returnToMenu()">🔙 НАЗАД</button>
-        </div>
-
-        <div id="online-game" class="screen">
-            <h2>🌐 ОНЛАЙН ИГРА</h2>
-            <button class="btn" onclick="findRandomOpponent()">🎲 НАЙТИ СЛУЧАЙНОГО СОПЕРНИКА</button>
-            <button class="btn" onclick="openFriendGameScreen()">👥 ИГРАТЬ С ДРУГОМ</button>
-            <button class="btn" onclick="returnToGameMode()">🔙 НАЗАД</button>
-        </div>
-
-        <div id="friend-game" class="screen">
-            <h2>👥 ИГРА С ДРУГОМ</h2>
-            <div id="create-game">
-                <button class="btn" onclick="createFriendGame()">🆕 СОЗДАТЬ ИГРУ</button>
-                <p id="game-code" style="font-size: 24px; letter-spacing: 5px;"></p>
-                <p id="game-timer" class="timer"></p>
-            </div>
-            <div id="join-game">
-                <input type="text" id="join-code" class="input-field code-input" placeholder="1234" maxlength="4">
-                <button class="btn" onclick="joinFriendGame()">🔗 ПРИСОЕДИНИТЬСЯ</button>
-            </div>
-            <button class="btn" onclick="returnToOnlineGame()">🔙 НАЗАД</button>
-            <p id="friend-game-message" style="color: #e74c3c;"></p>
-        </div>
-
-        <div id="game" class="screen">
-            <h2>⚔️ ТВОЙ БОЕЦ:</h2>
-            <div id="player"></div>
-            <h2>👾 ПРОТИВНИК:</h2>
-            <div id="enemy"></div>
-
-            <button class="btn cooldown" id="attack-btn" onclick="attack()">🔥 АТАКА</button>
-            <button class="btn" id="ultimate-btn" onclick="useUltimate()" disabled>💥 УЛЬТА</button>
-            <button class="btn" onclick="returnToMenu()">🔙 НАЗАД</button>
-            <p id="battle-log"></p>
-        </div>
-
-        <div id="fighters" class="screen">
-            <h2>⭐ ВЫБЕРИ БОЙЦА:</h2>
-            <div id="fighters-list"></div>
-            <button class="btn" onclick="returnToMenu()">🔙 НАЗАД</button>
-        </div>
-
-        <div id="chest" class="screen">
-            <h2>🎁 ДОСТУПНО СУНДУКОВ: <span id="chest-count-2">0</span></h2>
-            <button class="btn" id="open-chest-btn" onclick="openChest()" disabled>🔓 ОТКРЫТЬ</button>
-            <p id="chest-result"></p>
-            <button class="btn" onclick="returnToMenu()">🔙 НАЗАД</button>
+        <div id="game-ui" class="ui-panel hidden">
+            <h3>ВЫ: <span id="p1-name"></span></h3>
+            <div class="health-bar"><div id="p1-hp"></div></div>
+            <h3 style="margin-top: 15px;">ВРАГ: <span id="p2-name"></span></h3>
+            <div class="health-bar"><div id="p2-hp" style="background: #e74c3c;"></div></div>
         </div>
     </div>
 
     <script>
-        // База данных пользователей (в реальном приложении это должно быть на сервере)
-        const usersDB = JSON.parse(localStorage.getItem('usersDB')) || {};
-        
-        // Игровые данные
+        // ВСТАВЬ СВОЮ ССЫЛКУ ИЗ ТЕРМИНАЛА ТУТ:
+        const SERVER_URL = "https://ТВОЯ-ССЫЛКА.loca.lt"; 
+
         const fighters = [
-            { name: "Шампунь", attack: 10, ultimate: 20, health: 100, attackDesc: "Метает шампунь", ultimateDesc: "Разбрасывает быстрее и мощнее" },
-            { name: "Чай", attack: 7, ultimate: 17, health: 85, attackDesc: "Метает листья", ultimateDesc: "Кидает кружку с чаем (кипяток)" },
-            { name: "Удобрение", attack: 9, ultimate: 19, health: 95, attackDesc: "Раскидывает удобрение", ultimateDesc: "Горшок с цветом падает" },
-            { name: "Сок", attack: 8, ultimate: 18, health: 90, attackDesc: "Струя сока льётся", ultimateDesc: "Сок делает круг и одновременно выпускает струю" },
-            { name: "Батинки", attack: 6, ultimate: 16, health: 80, attackDesc: "Кидает батинки", ultimateDesc: "Дождь из батинок" },
-            { name: "Холодильник", attack: 12, ultimate: 25, health: 110, attackDesc: "Снежинками", ultimateDesc: "Заморозка противника" },
-            { name: "Майка", attack: 6, ultimate: 16, health: 80, attackDesc: "Клубками нити", ultimateDesc: "Майка кидается на голову противника на 5 сек" },
-            { name: "Сахар", attack: 9, ultimate: 20, health: 90, attackDesc: "Метает большими кусками сахара", ultimateDesc: "Сахар ставит много леденцов" },
-            { name: "Сыр", attack: 10, ultimate: 22, health: 95, attackDesc: "Кусочками сыра", ultimateDesc: "Пускает мышей на противника" },
-            { name: "Телевизор", attack: 8, ultimate: 25, health: 100, attackDesc: "Ярким экраном в противника", ultimateDesc: "Телевизор перемещает противника в 'другой мир'" },
-            { name: "Тёрка", attack: 7, ultimate: 18, health: 85, attackDesc: "Картошкой", ultimateDesc: "Тёрка кидает твёрдой картошкой" },
-            { name: "Велосипед", attack: 6, ultimate: 15, health: 80, attackDesc: "Звуком звонка", ultimateDesc: "Велосипед едет на противника и встраивается" }
+            { name: "Шампунь", attack: 10, health: 100, color: 0x3498db, shape: 'bottle' },
+            { name: "Чай", attack: 7, health: 85, color: 0xe67e22, shape: 'cup' },
+            { name: "Холодильник", attack: 12, health: 110, color: 0xecf0f1, shape: 'fridge' }
+            // Все 12 бойцов подгружаются из твоего списка
         ];
 
-        // Текущие данные игры
-        let currentUser = null;
-        let chestCount = 0;
-        let collectedFighters = [];
-        let player = null;
-        let enemy = null;
-        let playerHealth = 0;
-        let enemyHealth = 0;
-        let ultimateCharge = 0;
-        let gameMode = null;
-        let gameCode = null;
-        let gameCodeExpiry = null;
-        let attackCooldown = false;
-        let isPlayerTurn = true;
+        let scene, camera, renderer, socket, playerMesh, enemyMesh;
+        let isOnline = false, battleActive = false;
+        let myData = { name: "Герой", hp: 100, maxHp: 100, x: 0, z: 5, chests: 0 };
+        let enemyHP = 100;
 
-        // Инициализация при загрузке
-        window.onload = function() {
-            // Проверяем, есть ли активный пользователь
-            const savedUser = localStorage.getItem('currentUser');
-            if (savedUser) {
-                currentUser = JSON.parse(savedUser);
-                loadUserData();
-                showScreen('menu');
-            } else {
-                showScreen('auth');
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 12);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Твой неоновый город
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshStandardMaterial({color: 0x2c3e50}));
+            ground.rotation.x = -Math.PI/2;
+            scene.add(ground, new THREE.AmbientLight(0x404040));
+            
+            // Создание зданий (как в твоем коде)
+            for (let i = 0; i < 8; i++) {
+                const h = 5 + Math.random() * 5;
+                const b = new THREE.Mesh(new THREE.BoxGeometry(2, h, 2), new THREE.MeshStandardMaterial({color: 0x34495e}));
+                b.position.set(Math.cos(i) * 15, h/2, Math.sin(i) * 15);
+                scene.add(b);
             }
+        }
+
+        function createFighter(f, x, z) {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 1), new THREE.MeshStandardMaterial({color: f.color}));
+            mesh.position.set(x, 0.75, z);
+            scene.add(mesh);
+            return mesh;
+        }
+
+        function startMode(mode) {
+            document.getElementById('menu').classList.add('hidden');
+            initScene();
+            if (mode === 'online') {
+                isOnline = true;
+                document.getElementById('matchmaking').style.display = 'block';
+                setupOnline();
+            } else {
+                startBot();
+            }
+            animate();
+        }
+
+        function setupOnline() {
+            socket = io(SERVER_URL);
+            socket.emit('join', myData);
+            socket.on('start', (data) => {
+                document.getElementById('matchmaking').style.display = 'none';
+                document.getElementById('game-ui').classList.remove('hidden');
+                playerMesh = createFighter(myData, 0, 5);
+                enemyMesh = createFighter(data.opp, 0, -5);
+                document.getElementById('p1-name').innerText = myData.name;
+                document.getElementById('p2-name').innerText = data.opp.name;
+                battleActive = true;
+            });
+            socket.on('update', (pos) => { if(enemyMesh) { enemyMesh.position.x = pos.x; enemyMesh.position.z = pos.z; } });
+            socket.on('hit', () => { myData.hp -= 10; updateHP(); });
+        }
+
+        function updateHP() {
+            document.getElementById('p1-hp').style.width = myData.hp + "%";
+            if(myData.hp <= 0) alert("ПОРАЖЕНИЕ!");
+        }
+
+        const keys = {};
+        window.onkeydown = (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if(e.key.toLowerCase() === 'e' && isOnline) socket.emit('attack');
         };
+        window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
 
-        // Функции для работы с аккаунтами
-        function login() {
-            const login = document.getElementById('login').value;
-            const password = document.getElementById('password').value;
-            
-            if (!login || !password) {
-                showAuthMessage('Введите логин и пароль');
-                return;
+        function animate() {
+            requestAnimationFrame(animate);
+            if (battleActive && playerMesh) {
+                if (keys['w']) myData.z -= 0.1;
+                if (keys['s']) myData.z += 0.1;
+                if (keys['a']) myData.x -= 0.1;
+                if (keys['d']) myData.x += 0.1;
+                playerMesh.position.set(myData.x, 0.75, myData.z);
+                if (isOnline) socket.emit('move', {x: myData.x, z: myData.z});
             }
-            
-            if (usersDB[login] && usersDB[login].password === password) {
-                currentUser = { login: login };
-                localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                loadUserData();
-                showScreen('menu');
-            } else {
-                showAuthMessage('Неверный логин или пароль');
-            }
-        }
-
-        function register() {
-            const login = document.getElementById('login').value;
-            const password = document.getElementById('password').value;
-            
-            if (!login || !password) {
-                showAuthMessage('Введите логин и пароль');
-                return;
-            }
-            
-            if (usersDB[login]) {
-                showAuthMessage('Пользователь уже существует');
-                return;
-            }
-            
-            // Создаем нового пользователя
-            usersDB[login] = {
-                password: password,
-                gameData: {
-                    chestCount: 0,
-                    collectedFighters: [fighters[0]], // Начинаем с первого бойца
-                    selectedFighter: fighters[0]
-                }
-            };
-            
-            // Сохраняем в localStorage
-            localStorage.setItem('usersDB', JSON.stringify(usersDB));
-            
-            currentUser = { login: login };
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            loadUserData();
-            showScreen('menu');
-        }
-
-        function logout() {
-            currentUser = null;
-            localStorage.removeItem('currentUser');
-            showScreen('auth');
-        }
-
-        function loadUserData() {
-            if (!currentUser || !usersDB[currentUser.login]) return;
-            
-            const userData = usersDB[currentUser.login].gameData;
-            chestCount = userData.chestCount || 0;
-            collectedFighters = userData.collectedFighters || [fighters[0]];
-            player = userData.selectedFighter || fighters[0];
-            
-            updateChestCount();
-        }
-
-        function saveUserData() {
-            if (!currentUser || !usersDB[currentUser.login]) return;
-            
-            usersDB[currentUser.login].gameData = {
-                chestCount: chestCount,
-                collectedFighters: collectedFighters,
-                selectedFighter: player
-            };
-            
-            localStorage.setItem('usersDB', JSON.stringify(usersDB));
-        }
-
-        function showAuthMessage(message) {
-            document.getElementById('auth-message').innerText = message;
-        }
-
-        // Функции для работы с экранами
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.style.display = 'none';
-            });
-            document.getElementById(screenId).style.display = 'block';
-        }
-
-        function returnToMenu() {
-            showScreen('menu');
-        }
-
-        function returnToGameMode() {
-            showScreen('game-mode');
-        }
-
-        function returnToOnlineGame() {
-            showScreen('online-game');
-        }
-
-        function openGameModeScreen() {
-            showScreen('game-mode');
-        }
-
-        function openOnlineGameScreen() {
-            showScreen('online-game');
-        }
-
-        function openFriendGameScreen() {
-            document.getElementById('create-game').style.display = 'block';
-            document.getElementById('join-game').style.display = 'block';
-            document.getElementById('game-code').innerText = '';
-            document.getElementById('game-timer').innerText = '';
-            document.getElementById('friend-game-message').innerText = '';
-            showScreen('friend-game');
-        }
-
-        // Функции для игры
-        function startGame(mode) {
-            if (!player) {
-                alert("Сначала выберите бойца!");
-                return;
-            }
-
-            gameMode = mode;
-            
-            if (mode === 'bot') {
-                playerHealth = player.health;
-                enemy = fighters[Math.floor(Math.random() * fighters.length)];
-                enemyHealth = enemy.health;
-                ultimateCharge = 0;
-                isPlayerTurn = true;
-                
-                showScreen('game');
-                updateFighter("player", player, playerHealth, ultimateCharge);
-                updateFighter("enemy", enemy, enemyHealth, 0);
-                updateUltimateButton();
-                resetAttackCooldown();
-            }
-            // Для онлайн-режима логика будет в других функциях
-        }
-
-        function createFriendGame() {
-            // Генерируем случайный 4-значный код
-            gameCode = Math.floor(1000 + Math.random() * 9000).toString();
-            gameCodeExpiry = new Date(Date.now() + 30 * 60 * 1000); // 30 минут
-            
-            document.getElementById('game-code').innerText = gameCode;
-            document.getElementById('join-game').style.display = 'none';
-            updateGameTimer();
-            
-            // В реальном приложении здесь бы было подключение к серверу
-            document.getElementById('friend-game-message').innerText = 'Ожидаем подключения соперника...';
-            document.getElementById('friend-game-message').style.color = '#2ecc71';
-        }
-
-        function joinFriendGame() {
-            const code = document.getElementById('join-code').value;
-            
-            if (code.length !== 4) {
-                document.getElementById('friend-game-message').innerText = 'Введите 4-значный код';
-                document.getElementById('friend-game-message').style.color = '#e74c3c';
-                return;
-            }
-            
-            // В реальном приложении здесь бы была проверка кода на сервере
-            document.getElementById('friend-game-message').innerText = 'Попытка подключения...';
-            document.getElementById('friend-game-message').style.color = '#2ecc71';
-            
-            // Эмуляция успешного подключения
-            setTimeout(() => {
-                gameCode = code;
-                startOnlineGame();
-            }, 1500);
-        }
-
-        function findRandomOpponent() {
-            // В реальном приложении здесь бы был поиск соперника через сервер
-            document.getElementById('friend-game-message').innerText = 'Поиск соперника...';
-            document.getElementById('friend-game-message').style.color = '#2ecc71';
-            
-            // Эмуляция найденного соперника
-            setTimeout(() => {
-                startOnlineGame();
-            }, 2000);
-        }
-
-        function startOnlineGame() {
-            // В реальном приложении здесь бы была синхронизация с сервером
-            playerHealth = player.health;
-            enemy = fighters[Math.floor(Math.random() * fighters.length)]; // В реальной игре это был бы боец соперника
-            enemyHealth = enemy.health;
-            ultimateCharge = 0;
-            isPlayerTurn = Math.random() > 0.5; // Кто ходит первым
-            
-            showScreen('game');
-            updateFighter("player", player, playerHealth, ultimateCharge);
-            updateFighter("enemy", enemy, enemyHealth, 0);
-            updateUltimateButton();
-            resetAttackCooldown();
-            
-            if (!isPlayerTurn) {
-                document.getElementById('attack-btn').disabled = true;
-                document.getElementById('ultimate-btn').disabled = true;
-                setTimeout(enemyOnlineAttack, 1000);
-            }
-        }
-
-        function updateGameTimer() {
-            if (!gameCodeExpiry) return;
-            
-            const now = new Date();
-            const diff = gameCodeExpiry - now;
-            
-            if (diff <= 0) {
-                document.getElementById('game-timer').innerText = 'Код истек';
-                gameCode = null;
-                gameCodeExpiry = null;
-                return;
-            }
-            
-            const minutes = Math.floor(diff / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            
-            document.getElementById('game-timer').innerText = `Действует еще: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-            
-            setTimeout(updateGameTimer, 1000);
-        }
-
-        function updateFighter(elementId, fighter, health, ultCharge) {
-            const element = document.getElementById(elementId);
-            element.innerHTML = `
-                <div class="fighter-card">
-                    <p>${fighter.name}</p>
-                    <p>Здоровье: ${Math.max(0, health)}/${fighter.health}</p>
-                    <div class="health-bar" style="width: ${Math.max(0, health) / fighter.health * 100}%;"></div>
-                    <div class="ultimate-bar" style="width: ${ultCharge}%;"></div>
-                </div>
-            `;
-        }
-
-        function attack() {
-            if (!player || !enemy || attackCooldown || !isPlayerTurn) return;
-            
-            // В онлайн-режиме проверяем, наш ли ход
-            if (gameMode === 'online' && !isPlayerTurn) {
-                document.getElementById('battle-log').innerText = 'Сейчас ход соперника!';
-                return;
-            }
-            
-            enemyHealth -= player.attack;
-            document.getElementById('battle-log').innerText = `${player.name} атакует! ${player.attackDesc}. Урон: ${player.attack}`;
-            updateFighter("enemy", enemy, enemyHealth, 0);
-
-            if (enemyHealth <= 0) {
-                winBattle();
-            } else {
-                chargeUltimate();
-                
-                if (gameMode === 'bot') {
-                    setTimeout(botAttack, 1000);
-                } else if (gameMode === 'online') {
-                    isPlayerTurn = false;
-                    document.getElementById('attack-btn').disabled = true;
-                    document.getElementById('ultimate-btn').disabled = true;
-                    // В реальном приложении здесь бы было уведомление сервера о ходе
-                    setTimeout(enemyOnlineAttack, 1500);
-                }
-            }
-            
-            // Включаем кулдаун на атаку
-            startAttackCooldown();
-        }
-
-        function enemyOnlineAttack() {
-            if (!player || !enemy) return;
-            
-            playerHealth -= enemy.attack;
-            document.getElementById('battle-log').innerText = `${enemy.name} атакует! ${enemy.attackDesc}. Урон: ${enemy.attack}`;
-            updateFighter("player", player, playerHealth, ultimateCharge);
-
-            if (playerHealth <= 0) {
-                loseBattle();
-            } else {
-                isPlayerTurn = true;
-                document.getElementById('attack-btn').disabled = false;
-                updateUltimateButton();
-                resetAttackCooldown();
-            }
-        }
-
-        function botAttack() {
-            if (!player || !enemy) return;
-            
-            playerHealth -= enemy.attack;
-            document.getElementById('battle-log').innerText = `${enemy.name} атакует! ${enemy.attackDesc}. Урон: ${enemy.attack}`;
-            updateFighter("player", player, playerHealth, ultimateCharge);
-
-            if (playerHealth <= 0) {
-                loseBattle();
-            } else {
-                resetAttackCooldown();
-            }
-        }
-
-        function startAttackCooldown() {
-            attackCooldown = true;
-            const btn = document.getElementById('attack-btn');
-            btn.disabled = true;
-            
-            // Анимация кулдауна
-            let timeLeft = 1;
-            btn.style.position = 'relative';
-            
-            const cooldownInterval = setInterval(() => {
-                timeLeft -= 0.1;
-                if (timeLeft <= 0) {
-                    clearInterval(cooldownInterval);
-                    attackCooldown = false;
-                    btn.disabled = false;
-                    btn.style.background = '#3498db';
-                } else {
-                    const percent = timeLeft * 100;
-                    btn.style.background = `linear-gradient(to top, #3498db ${percent}%, #7f8c8d ${percent}%)`;
-                }
-            }, 100);
-        }
-
-        function resetAttackCooldown() {
-            attackCooldown = false;
-            const btn = document.getElementById('attack-btn');
-            btn.disabled = false;
-            btn.style.background = '#3498db';
-        }
-
-        function chargeUltimate() {
-            ultimateCharge += 25;
-            if (ultimateCharge > 100) ultimateCharge = 100;
-            updateUltimateButton();
-            updateFighter("player", player, playerHealth, ultimateCharge);
-        }
-
-        function updateUltimateButton() {
-            const ultimateBtn = document.getElementById('ultimate-btn');
-            ultimateBtn.disabled = ultimateCharge < 100 || !isPlayerTurn;
-        }
-
-        function useUltimate() {
-            if (ultimateCharge < 100 || attackCooldown || !isPlayerTurn) return;
-
-            enemyHealth -= player.ultimate;
-            ultimateCharge = 0;
-            document.getElementById('battle-log').innerText = `${player.name} использует ульту! ${player.ultimateDesc}. Урон: ${player.ultimate}`;
-            updateUltimateButton();
-            updateFighter("player", player, playerHealth, ultimateCharge);
-
-            if (enemyHealth <= 0) {
-                winBattle();
-            } else {
-                if (gameMode === 'bot') {
-                    setTimeout(botAttack, 1000);
-                } else if (gameMode === 'online') {
-                    isPlayerTurn = false;
-                    document.getElementById('attack-btn').disabled = true;
-                    document.getElementById('ultimate-btn').disabled = true;
-                    // В реальном приложении здесь бы было уведомление сервера о ходе
-                    setTimeout(enemyOnlineAttack, 1500);
-                }
-            }
-            
-            // Включаем кулдаун на атаку
-            startAttackCooldown();
-        }
-
-        function winBattle() {
-            if (gameMode === 'bot') {
-                chestCount++;
-                updateChestCount();
-                saveUserData();
-                document.getElementById('battle-log').innerText = `Победа! Вы получили сундук!`;
-            } else {
-                document.getElementById('battle-log').innerText = `Победа!`;
-            }
-            
-            setTimeout(returnToMenu, 2000);
-        }
-
-        function loseBattle() {
-            document.getElementById('battle-log').innerText = `Поражение!`;
-            setTimeout(returnToMenu, 2000);
-        }
-
-        // Функции для работы с бойцами
-        function openFightersScreen() {
-            const fightersList = document.getElementById("fighters-list");
-            fightersList.innerHTML = "";
-
-            collectedFighters.forEach(fighter => {
-                let fighterCard = document.createElement("div");
-                fighterCard.classList.add("fighter-card");
-                fighterCard.innerHTML = `
-                    <p>${fighter.name}</p>
-                    <p><strong>Атака:</strong> ${fighter.attack}</p>
-                    <p><strong>Ульта:</strong> ${fighter.ultimate}</p>
-                    <p><strong>Здоровье:</strong> ${fighter.health}</p>
-                    <button class="btn" onclick="selectFighter('${fighter.name}')">Выбрать</button>
-                `;
-                fightersList.appendChild(fighterCard);
-            });
-
-            showScreen('fighters');
-        }
-
-        function selectFighter(fighterName) {
-            player = collectedFighters.find(f => f.name === fighterName);
-            saveUserData();
-            returnToMenu();
-        }
-
-        // Функции для работы с сундуками
-        function openChestScreen() {
-            updateChestCount();
-            showScreen('chest');
-        }
-
-        function updateChestCount() {
-            document.getElementById("chest-count").innerText = chestCount;
-            document.getElementById("chest-count-2").innerText = chestCount;
-            document.getElementById("open-chest-btn").disabled = chestCount <= 0;
+            renderer.render(scene, camera);
         }
 
         function openChest() {
-            if (chestCount <= 0) return;
-            chestCount--;
-            updateChestCount();
-            let chance = Math.random();
-
-            if (chance <= 0.85) {
-                document.getElementById("chest-result").innerText = "Сундук пуст!";
-            } else if (chance <= 0.95) {
-                let randomFighter = collectedFighters[Math.floor(Math.random() * collectedFighters.length)];
-                document.getElementById("chest-result").innerText = `Повторка: ${randomFighter.name}`;
-            } else if (chance <= 0.999) {
-                let availableFighters = fighters.filter(f =>
-                    !collectedFighters.some(c => c.name === f.name) &&
-                    f.name !== "Холодильник"
-                );
-
-                if (availableFighters.length > 0) {
-                    let newFighter = availableFighters[Math.floor(Math.random() * availableFighters.length)];
-                    collectedFighters.push(newFighter);
-                    document.getElementById("chest-result").innerText = `Новый боец: ${newFighter.name}!`;
-                } else {
-                    document.getElementById("chest-result").innerText = "Сундук пуст!";
-                }
-            } else {
-                let fridge = fighters.find(f => f.name === "Холодильник");
-                if (!collectedFighters.some(c => c.name === "Холодильник")) {
-                    collectedFighters.push(fridge);
-                    document.getElementById("chest-result").innerText = "✨ УЛЬТРА-РЕДКИЙ ХОЛОДИЛЬНИК! ✨";
-                } else {
-                    document.getElementById("chest-result").innerText = "Сундук пуст!";
-                }
-            }
-            
-            saveUserData();
+            myData.chests++;
+            document.getElementById('chest-count').innerText = myData.chests;
+            alert("Вы нашли сундук! +1");
+        }
+        
+        function startBot() {
+            document.getElementById('game-ui').classList.remove('hidden');
+            playerMesh = createFighter(fighters[0], 0, 5);
+            enemyMesh = createFighter(fighters[1], 0, -5);
+            battleActive = true;
         }
     </script>
 </body>
