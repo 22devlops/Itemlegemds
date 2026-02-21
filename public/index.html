@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Item Legends Online</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #2c3e50; color: white; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #34495e; padding: 20px; border-radius: 15px; text-align: center; }
+        .btn { padding: 12px 25px; margin: 10px; border: none; border-radius: 8px; cursor: pointer; background: #3498db; color: white; }
+        .btn:disabled { background: #7f8c8d; }
+        .fighter-card { display: inline-block; width: 200px; margin: 15px; padding: 15px; background: #2ecc71; border-radius: 10px; }
+        .health-bar-bg { width: 100%; height: 20px; background: #e74c3c; border-radius: 5px; margin: 10px 0; }
+        .health-bar-fill { height: 100%; background: #2ecc71; transition: width 0.3s; width: 100%; }
+        .screen { display: none; }
+        #status { color: #f1c40f; text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="status">Подключение...</div>
+        <h1>🎮 ITEM LEGENDS</h1>
+
+        <div id="menu">
+            <button class="btn" onclick="startGame()">▶️ НАЧАТЬ БОЙ</button>
+            <button class="btn" onclick="openFightersScreen()">🎖️ МОИ БОЙЦЫ</button>
+        </div>
+
+        <div id="game" class="screen">
+            <h2 id="battle-msg">Ожидание противника...</h2>
+            <div id="enemy-ui"></div>
+            <hr>
+            <div id="player-ui"></div>
+            <button class="btn" id="atk-btn" onclick="attack()" disabled>🔥 АТАКА</button>
+        </div>
+
+        <div id="fighters" class="screen">
+            <h2>ВЫБЕРИ БОЙЦА:</h2>
+            <div id="fighters-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:3000'); 
+        
+        const fighters = [
+            { name: "Шампунь", attack: 10, health: 100 },
+            { name: "Холодильник", attack: 15, health: 120 }
+        ];
+
+        let player = JSON.parse(localStorage.getItem('selectedFighter')) || fighters[0];
+        let enemyInfo = null;
+
+        socket.on('connect', () => {
+            document.getElementById('status').innerText = "Сервер: Онлайн";
+        });
+
+        socket.on('playersUpdate', (room) => {
+            const enemyId = Object.keys(room).find(id => id !== socket.id);
+            if (enemyId) {
+                enemyInfo = room[enemyId];
+                document.getElementById('battle-msg').innerText = "БОЙ НАЧАЛСЯ!";
+                renderFighter("enemy-ui", enemyInfo.name, enemyInfo.hp, enemyInfo.maxHp);
+                renderFighter("player-ui", player.name, player.health, player.health);
+                document.getElementById('atk-btn').disabled = false;
+            }
+        });
+
+        socket.on('hitResult', (data) => {
+            if (data.victimId === socket.id) {
+                renderFighter("player-ui", player.name, data.newHp, player.health);
+            } else {
+                renderFighter("enemy-ui", enemyInfo.name, data.newHp, enemyInfo.maxHp);
+            }
+        });
+
+        socket.on('battleEnd', (data) => {
+            alert("Победил " + data.winner);
+            location.reload();
+        });
+
+        function startGame() {
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("game").style.display = "block";
+            socket.emit('joinBattle', { name: player.name, health: player.health, attack: player.attack });
+        }
+
+        function attack() { socket.emit('doAttack'); }
+
+        function renderFighter(divId, name, hp, max) {
+            const pct = (hp / max) * 100;
+            document.getElementById(divId).innerHTML = `
+                <div class="fighter-card">
+                    <p><b>${name}</b></p>
+                    <div class="health-bar-bg"><div class="health-bar-fill" style="width:${Math.max(0, pct)}%"></div></div>
+                    <p>${Math.max(0, hp)} / ${max} HP</p>
+                </div>`;
+        }
+
+        function openFightersScreen() {
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("fighters").style.display = "block";
+            const list = document.getElementById("fighters-list");
+            list.innerHTML = "";
+            fighters.forEach(f => {
+                list.innerHTML += `<div class="fighter-card"><p>${f.name}</p><button onclick="selectFighter('${f.name}')">Выбрать</button></div>`;
+            });
+        }
+
+        function selectFighter(name) {
+            player = fighters.find(f => f.name === name);
+            localStorage.setItem('selectedFighter', JSON.stringify(player));
+            location.reload();
+        }
+    </script>
+</body>
+</html>
